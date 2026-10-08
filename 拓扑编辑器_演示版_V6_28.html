@@ -1,0 +1,1620 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>混合逆变器 运行模式介绍 · 展厅能量拓扑</title>
+<style>
+  :root{
+    --bg:#050a18;
+    --panel:#112244;
+    --panel-border:#1a4a7a;
+    --text:#f0f8ff;
+    --text-dim:#7aa8d8;
+
+  }
+  *{margin:0;padding:0;box-sizing:border-box;
+    transition:background-color .4s ease,border-color .4s ease,color .3s ease,fill .3s ease,stroke .3s ease;}
+  .wire,.particle{transition:stroke .3s ease,fill .3s ease,opacity .3s ease;}
+  .dev{transition:background .4s ease,border-color .4s ease,filter .4s ease,transform .3s ease;}
+  html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);
+    font-family:"PingFang SC","Microsoft YaHei","Noto Sans SC",sans-serif;color:var(--text);}
+  body{
+    background:
+      radial-gradient(ellipse at 50% 0%, color-mix(in srgb, var(--panel-border) 40%, transparent) 0%, transparent 60%),
+      radial-gradient(ellipse at 20% 100%, color-mix(in srgb, var(--panel) 50%, transparent) 0%, transparent 50%),
+      var(--bg);
+    display:flex;align-items:center;justify-content:center;
+    transition:background .5s ease;
+  }
+  .info-panel{
+    position:fixed;left:0;right:210px;top:0;z-index:20;
+    display:flex;align-items:center;gap:24px;
+    padding:10px 32px;
+    background:linear-gradient(180deg,color-mix(in srgb, var(--bg) 95%, transparent) 0%,color-mix(in srgb, var(--bg) 85%, transparent) 70%,color-mix(in srgb, var(--bg) 0%, transparent) 100%);
+    backdrop-filter:blur(6px);
+    height:84px;box-sizing:border-box;flex-shrink:0;
+    transition:background .4s ease;
+  }
+  .info-panel .info-left{flex-shrink:0;}
+  .info-panel h1{font-size:22px;font-weight:700;letter-spacing:2px;margin-bottom:2px;white-space:nowrap;
+    background:linear-gradient(90deg,#fff,#c8d8f0);-webkit-background-clip:text;-webkit-text-fill-color:transparent;}
+  .info-panel .sub{font-size:11px;color:var(--text-dim);letter-spacing:2px;}
+  .info-panel .mode-tag{
+    display:inline-flex;align-items:center;gap:8px;
+    padding:6px 16px;border-radius:20px;flex-shrink:0;
+    background:linear-gradient(135deg,rgba(0,212,255,.18),rgba(0,212,255,.06));
+    border:1px solid rgba(0,212,255,.5);
+    color:var(--core);font-size:14px;font-weight:600;
+    box-shadow:0 0 20px rgba(0,212,255,.15);
+  }
+  .info-panel .mode-tag::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--core);box-shadow:0 0 8px var(--core);animation:pulse 2s infinite;}
+  @keyframes pulse{0%,100%{opacity:1;}50%{opacity:.4;}}
+  .info-panel .mode-desc{
+    font-size:12px;color:var(--text-dim);line-height:1.5;
+    background:linear-gradient(135deg,rgba(14,29,58,.6),rgba(10,20,42,.4));
+    border-left:2px solid var(--core);
+    padding:6px 14px;border-radius:0 8px 8px 0;
+    flex:1;min-width:0;max-height:60px;overflow-y:auto;
+  }
+  .info-panel .mode-desc::-webkit-scrollbar{width:3px;}
+  .info-panel .mode-desc::-webkit-scrollbar-thumb{background:var(--panel-border);border-radius:2px;}
+  .info-panel .mode-desc b{color:var(--text);font-weight:600;}
+  /* 导出图片元素 */
+  .export-image{
+    position:absolute;
+    border-radius:4px;overflow:hidden;pointer-events:none;
+  }
+  .export-image img{width:100%;height:100%;display:block;object-fit:contain;pointer-events:none;-webkit-user-drag:none;}
+
+  /* 导出文字框元素 */
+  .export-text{
+    position:absolute;
+    padding:6px 10px;border-radius:4px;
+    display:flex;align-items:center;justify-content:center;
+    text-align:center;word-break:break-word;pointer-events:none;
+    line-height:1.4;
+  }
+
+  .stage-wrap{position:fixed;left:0;top:0;width:1600px;height:900px;transform-origin:0 0;user-select:none;-webkit-user-select:none;}
+
+  /* 响应式优化：小屏幕下调整信息栏 */
+  @media (max-width: 1200px){
+    .info-panel{padding:10px 20px;gap:16px;}
+    .info-panel h1{font-size:18px;}
+    .info-panel .sub{font-size:10px;}
+    .info-panel .mode-tag{font-size:12px;padding:5px 12px;}
+    .info-panel .mode-desc{font-size:11px;}
+  }
+  @media (max-width: 900px){
+    .info-panel{flex-wrap:wrap;gap:10px;padding:8px 16px;}
+    .info-panel .info-left{width:100%;}
+    .info-panel .mode-desc{width:100%;flex:none;}
+    .panel{width:180px;}
+  }
+  .stage{position:absolute;inset:0;}
+  .stage svg{position:absolute;inset:0;width:1600px;height:900px;}
+  .dev{
+    position:absolute;transform:translate(-50%,-50%);
+    width:150px;padding:10px 12px;border-radius:10px;
+    background:linear-gradient(160deg, color-mix(in srgb, var(--panel-border) 55%, var(--bg)), color-mix(in srgb, var(--panel) 85%, var(--bg)));
+    border:1.5px solid var(--panel-border);
+    text-align:center;z-index:5;transition:all .4s ease;
+  }
+  .dev .icon{font-size:28px;line-height:1;margin-bottom:6px;}
+  .dev .name{font-size:var(--name-size);font-weight:600;}
+  .dev .desc{font-size:var(--desc-size);color:var(--text-dim);margin-top:3px;line-height:1.4;}
+  .dev.core{
+    width:240px;padding:18px 16px;
+    border:2px solid #00d4ff;
+    background:linear-gradient(160deg, color-mix(in srgb, #00d4ff 22%, var(--panel)), color-mix(in srgb, #00d4ff 8%, var(--bg)));
+  }
+  .dev.core .name{font-size:calc(var(--name-size) + 4px);color:#00d4ff;}
+  .dev.highlight{border-color:#00d4ff!important;}
+  .dev.off{opacity:.3;filter:grayscale(.7);}
+  .wire{fill:none;stroke-width:2;opacity:.18;transition:opacity .4s;}
+  .wire.active{opacity:.9;}
+
+@keyframes wireBlink {
+  0%, 100% { opacity: .18; stroke-width: 2; }
+  50% { opacity: 1; stroke-width: 3.5; filter: drop-shadow(0 0 8px currentColor); }
+}
+.wire.wire-blink { animation: wireBlink 1s ease-in-out infinite; }
+@keyframes elemBlink {
+  0%, 100% { opacity: 1; filter: none; }
+  50% { opacity: .85; filter: drop-shadow(0 0 12px rgba(0,212,255,.8)) drop-shadow(0 0 24px rgba(0,212,255,.5)); }
+}
+.dev.elem-blink, .export-image.elem-blink, .export-text.elem-blink { animation: elemBlink 1.2s ease-in-out infinite; }
+.elem-hidden { display: none !important; }
+
+  .wire.wire-core{stroke-width:3;filter:drop-shadow(0 0 6px currentColor);}
+  .particle{fill:#fff;filter:drop-shadow(0 0 3px #fff) drop-shadow(0 0 6px rgba(255,255,255,.6)) drop-shadow(0 0 10px rgba(255,255,255,.3));}
+  .panel{
+    position:fixed;right:0;top:0;bottom:0;width:210px;z-index:30;
+    background:color-mix(in srgb, var(--panel) 95%, transparent);border-left:1px solid var(--panel-border);
+    padding:16px 12px;backdrop-filter:blur(10px);
+    overflow-y:auto;overflow-x:hidden;display:flex;flex-direction:column;
+    box-sizing:border-box;
+  }
+  .panel-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-shrink:0;}
+  .panel-head h3{margin:0;font-size:12px;color:var(--text-dim);letter-spacing:2px;text-transform:uppercase;}
+  .auto-btn{
+    padding:4px 10px;font-size:10px;font-weight:700;border-radius:4px;
+    border:1px solid var(--panel-border);background:transparent;color:var(--text-dim);
+    cursor:pointer;transition:all .2s;letter-spacing:1px;flex-shrink:0;
+  }
+  .auto-btn:hover{border-color:var(--core);color:var(--core);}
+  .auto-btn.active{
+    background:var(--core);color:#fff;border-color:var(--core);
+    box-shadow:0 0 10px var(--core);animation:autoPulse 1.5s ease-in-out infinite;
+  }
+  @keyframes autoPulse{0%,100%{opacity:1;}50%{opacity:.65;}}
+  .panel::-webkit-scrollbar{width:5px;}
+  .panel::-webkit-scrollbar-track{background:transparent;}
+  .panel::-webkit-scrollbar-thumb{background:color-mix(in srgb, var(--panel-border) 80%, transparent);border-radius:3px;}
+  .panel::-webkit-scrollbar-thumb:hover{background:var(--panel-border);}
+  .panel h3{font-size:12px;color:var(--text-dim);margin-bottom:12px;letter-spacing:2px;
+    text-transform:uppercase;flex-shrink:0;padding-bottom:8px;border-bottom:1px solid color-mix(in srgb, var(--panel-border) 50%, transparent);}
+  .mode-btn{
+    display:block;width:100%;cursor:pointer;text-align:left;
+    color:var(--text);font-family:inherit;box-sizing:border-box;
+    transition:background .2s,border-color .2s,color .2s,box-shadow .2s;
+    white-space:normal;word-break:break-word;overflow-wrap:break-word;
+  }
+
+  /* ===== 风格一：经典按钮 classic ===== */
+  .ps-classic .mode-btn{
+    padding:8px 12px;margin-bottom:6px;border-radius:8px;font-size:13px;
+    background:color-mix(in srgb, var(--panel-border) 35%, transparent);
+    border:1px solid var(--panel-border);
+  }
+  .ps-classic .mode-btn.mode-l0{font-weight:700;font-size:13px;margin-top:4px;
+    background:linear-gradient(135deg,color-mix(in srgb, var(--panel-border) 55%, transparent),color-mix(in srgb, var(--panel-border) 25%, transparent));}
+  .ps-classic .mode-btn.mode-l1{font-size:12px;font-weight:400;margin-left:14px;width:calc(100% - 14px);
+    color:var(--text-dim);position:relative;}
+  .ps-classic .mode-btn.mode-l1::before{content:"";position:absolute;left:-8px;top:50%;width:6px;height:1px;background:var(--panel-border);}
+  .ps-classic .mode-btn.mode-l2{font-size:11.5px;margin-left:28px;width:calc(100% - 28px);color:var(--text-dim);}
+  .ps-classic .mode-btn:hover{background:rgba(50,90,160,.5);color:var(--text);}
+  .ps-classic .mode-btn.on{
+    background:linear-gradient(90deg, color-mix(in srgb, var(--core) 28%, transparent), color-mix(in srgb, var(--core) 8%, transparent));
+    border-color:var(--core);color:var(--core);font-weight:600;
+    box-shadow:0 0 12px color-mix(in srgb, var(--core) 20%, transparent);
+  }
+
+  /* ===== 风格二：极简列表 minimal ===== */
+  .ps-minimal{padding:18px 10px;}
+  .ps-minimal .mode-btn{
+    padding:7px 10px;margin-bottom:2px;border:1px solid transparent;border-radius:6px;
+    background:transparent;font-size:12.5px;color:var(--text-dim);position:relative;
+  }
+  .ps-minimal .mode-btn.mode-l0{
+    font-size:11px;font-weight:700;letter-spacing:1.5px;color:var(--text-dim);
+    text-transform:uppercase;margin-top:12px;margin-bottom:4px;padding-left:10px;
+    border-left:2px solid var(--panel-border);border-radius:0;
+  }
+  .ps-minimal .mode-btn.mode-l0:first-of-type{margin-top:2px;}
+  .ps-minimal .mode-btn.mode-l1{margin-left:12px;width:calc(100% - 12px);padding-left:14px;}
+  .ps-minimal .mode-btn.mode-l1::before{content:"";position:absolute;left:4px;top:0;bottom:0;width:2px;border-radius:2px;background:transparent;transition:background .2s;}
+  .ps-minimal .mode-btn.mode-l2{margin-left:26px;width:calc(100% - 26px);font-size:12px;padding-left:14px;}
+  .ps-minimal .mode-btn.mode-l2::before{content:"";position:absolute;left:4px;top:0;bottom:0;width:2px;border-radius:2px;background:transparent;}
+  .ps-minimal .mode-btn:hover{background:color-mix(in srgb, var(--panel-border) 25%, transparent);color:var(--text);}
+  .ps-minimal .mode-btn.on{background:color-mix(in srgb, var(--core) 12%, transparent);color:var(--core);font-weight:600;}
+  .ps-minimal .mode-btn.mode-l1.on::before,.ps-minimal .mode-btn.mode-l2.on::before{background:var(--core);box-shadow:0 0 8px var(--core);}
+  .ps-minimal .mode-btn.mode-l0.on{border-left-color:var(--core);color:var(--core);background:transparent;}
+
+  /* ===== 风格三：分组卡片 card ===== */
+  .ps-card{padding:14px 10px;}
+  .ps-card .mode-btn{margin-bottom:3px;border-radius:7px;font-size:12.5px;}
+  .ps-card .mode-btn.mode-l0{
+    font-weight:700;font-size:12.5px;letter-spacing:.5px;
+    padding:9px 12px;margin-top:12px;margin-bottom:0;
+    background:linear-gradient(135deg,color-mix(in srgb, var(--panel-border) 60%, transparent),color-mix(in srgb, var(--panel-border) 30%, transparent));
+    border:1px solid var(--panel-border);border-bottom-left-radius:0;border-bottom-right-radius:0;
+    color:var(--text);
+  }
+  .ps-card .mode-btn.mode-l0:first-of-type{margin-top:2px;}
+  .ps-card .mode-btn.mode-l1,.ps-card .mode-btn.mode-l2{
+    margin-left:8px;width:calc(100% - 8px);padding:7px 12px;font-weight:400;font-size:12px;
+    background:color-mix(in srgb, var(--panel) 70%, transparent);
+    border:1px solid color-mix(in srgb, var(--panel-border) 40%, transparent);border-top:none;
+    border-radius:0;color:var(--text-dim);
+  }
+  .ps-card .mode-btn.mode-l2{margin-left:18px;width:calc(100% - 18px);font-size:11.5px;}
+  /* 子分组最后一个按钮恢复圆角 */
+  .ps-card .mode-btn.mode-l1:last-child,.ps-card .mode-btn.mode-l2:last-child{border-bottom-left-radius:7px;border-bottom-right-radius:7px;margin-bottom:8px;}
+  .ps-card .mode-btn:hover{background:color-mix(in srgb, var(--panel-border) 45%, transparent);color:var(--text);}
+  .ps-card .mode-btn.on{
+    background:linear-gradient(90deg,color-mix(in srgb, var(--core) 30%, transparent),color-mix(in srgb, var(--core) 10%, transparent));
+    border-color:var(--core);color:var(--core);font-weight:600;
+  }
+  .sub-btn{
+    display:block;width:100%;padding:6px 10px;margin-bottom:4px;
+    border-radius:6px;color:var(--text-dim);font-size:12px;cursor:pointer;
+    background:color-mix(in srgb, var(--panel) 60%, transparent);
+    border:1px solid var(--panel-border);text-align:left;transition:all .25s;
+  }
+  .sub-btn:hover{background:color-mix(in srgb, var(--panel-border) 50%, transparent);color:var(--text);}
+  .sub-btn.on{background:rgba(77,166,255,.15);border-color:var(--grid);color:#a8d0ff;font-weight:600;}
+  .panel .divider{height:1px;border-top:1px dashed var(--panel-border);margin:12px 0;}
+  .sec-title{font-size:11px;color:var(--text-dim);margin-bottom:8px;letter-spacing:1px;}
+  .cond-group{margin-bottom:8px;}
+  .cond-group .cg-head{
+    display:flex;align-items:center;gap:6px;margin-bottom:4px;
+  }
+  .cond-group .cg-check{width:14px;height:14px;accent-color:var(--core);cursor:pointer;}
+  .cond-group .cg-label{font-size:12px;font-weight:600;color:var(--text);}
+  .cond-group .cg-body{padding-left:20px;display:none;}
+  .cond-group.enabled .cg-body{display:block;}
+  .cond-sub{
+    display:flex;align-items:center;gap:6px;padding:4px 8px;margin-bottom:3px;
+    background:rgba(30,58,110,.3);border:1px solid transparent;border-radius:5px;
+    font-size:11px;cursor:pointer;transition:all .2s;
+  }
+  .cond-sub:hover{border-color:#3a4a6a;}
+  .cond-sub.on{border-color:var(--grid);background:rgba(77,166,255,.15);color:#a8d0ff;font-weight:600;box-shadow:0 0 8px rgba(77,166,255,.2);}
+  .cond-sub .cs-radio{
+    width:14px;height:14px;border-radius:50%;border:2px solid #3a4a6a;flex-shrink:0;
+    display:flex;align-items:center;justify-content:center;transition:all .2s;
+  }
+  .cond-sub.on .cs-radio{border-color:var(--grid);background:var(--grid);box-shadow:0 0 6px var(--grid);}
+  .cond-sub.on .cs-radio::after{content:"";width:6px;height:6px;border-radius:50%;background:#fff;}
+
+
+/* ========== V1 新增样式 ========== */
+
+/* 导出下拉菜单 */
+.export-dropdown{position:relative;display:inline-block;}
+.export-menu{
+  display:none;position:absolute;top:100%;right:0;z-index:100;
+  background:#1a2540;border:1px solid #2a3a60;border-radius:8px;
+  min-width:160px;box-shadow:0 8px 24px rgba(0,0,0,.4);overflow:hidden;
+}
+.export-menu.show{display:block;}
+.export-item{
+  padding:10px 16px;font-size:13px;color:#c0d0f0;cursor:pointer;
+  transition:background .15s;
+}
+.export-item:hover{background:#243458;color:#fff;}
+
+/* 图片层 */
+#imageLayer{position:absolute;top:0;left:0;width:1600px;height:900px;pointer-events:none;z-index:5;}
+.canvas-image{
+  position:absolute;pointer-events:auto;cursor:move;
+  border:2px solid transparent;border-radius:4px;overflow:hidden;
+  user-select:none;-webkit-user-drag:none;
+}
+.canvas-image img{width:100%;height:100%;display:block;pointer-events:none;-webkit-user-drag:none;}
+.canvas-image.selected{border-color:#00d4ff;box-shadow:0 0 12px rgba(0,212,255,.5);}
+.canvas-image .resize-handle{
+  position:absolute;width:12px;height:12px;background:#00d4ff;
+  border:2px solid #1a2540;border-radius:50%;display:none;z-index:10;
+}
+.canvas-image.selected .resize-handle{display:block;}
+.canvas-image .rh-br{right:-6px;bottom:-6px;cursor:nwse-resize;}
+.canvas-image .img-del-btn{
+  position:absolute;top:-10px;right:-10px;width:22px;height:22px;
+  background:#ff5d7a;color:#fff;border-radius:50%;font-size:14px;
+  line-height:20px;text-align:center;cursor:pointer;display:none;z-index:11;
+  border:2px solid #1a2540;
+}
+.canvas-image.selected .img-del-btn{display:block;}
+
+/* 对齐按钮组 */
+.align-group{display:flex;gap:4px;flex-wrap:wrap;margin-top:8px;}
+.align-btn{
+  flex:1;min-width:36px;padding:6px 4px;font-size:11px;
+  background:#121828;border:1px solid #1a2540;border-radius:4px;
+  color:#8ab8e0;cursor:pointer;transition:all .15s;text-align:center;
+}
+.align-btn:hover{background:#1a2540;color:#fff;border-color:#4a5a80;}
+.align-btn:active{background:#3d4a6a;}
+
+/* 功能勾选行 */
+.feature-check{
+  display:flex;align-items:center;gap:10px;padding:8px 10px;
+  background:#121828;border:1px solid #1a2540;border-radius:6px;
+  margin-bottom:6px;font-size:12px;
+}
+.feature-check input[type="checkbox"]{width:16px;height:16px;accent-color:#00d4ff;cursor:pointer;}
+.feature-check .fc-label{flex:1;color:#c0d0f0;}
+.feature-check .fc-desc{font-size:10px;color:#6a7a9a;margin-top:2px;}
+
+/* 网格指示 - 与网格吸附功能关联 */
+.stage.grid-snap .bg-overlay{
+  background-image:
+    linear-gradient(rgba(0,212,255,.08) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0,212,255,.08) 1px, transparent 1px);
+  background-size:20px 20px;
+}
+
+/* 撤销按钮 */
+#btnUndo{background:#2a3a5a;border-color:#3a4a70;}
+#btnUndo:hover{background:#344870;}
+#btnUndo:disabled{opacity:.4;cursor:not-allowed;}
+
+/* 图片导入按钮 */
+#btnImportImg{background:#2a4a3a;border-color:#3a6a4a;}
+#btnImportImg:hover{background:#345a44;}
+
+
+/* ========== V1.1 新增样式 ========== */
+
+/* 统一元素层 */
+#elementLayer{position:absolute;top:0;left:0;width:1600px;height:900px;pointer-events:none;z-index:5;}
+
+/* 画布图片元素 */
+.canvas-image{
+  position:absolute;pointer-events:auto;cursor:move;
+  border:2px solid transparent;border-radius:4px;overflow:hidden;
+  user-select:none;-webkit-user-drag:none;
+}
+.canvas-image img{width:100%;height:100%;display:block;pointer-events:none;-webkit-user-drag:none;object-fit:contain;}
+.canvas-image.selected{border-color:#00d4ff;box-shadow:0 0 16px rgba(0,212,255,.6);}
+.canvas-image .resize-handle{
+  position:absolute;width:14px;height:14px;background:#00d4ff;
+  border:2px solid #1a2540;border-radius:50%;display:none;z-index:10;
+}
+.canvas-image.selected .resize-handle{display:block;}
+.canvas-image .rh-br{right:-7px;bottom:-7px;cursor:nwse-resize;}
+.canvas-image .elem-del-btn{
+  position:absolute;top:-11px;right:-11px;width:24px;height:24px;
+  background:#ff5d7a;color:#fff;border-radius:50%;font-size:15px;
+  line-height:21px;text-align:center;cursor:pointer;display:none;z-index:11;
+  border:2px solid #1a2540;
+}
+.canvas-image.selected .elem-del-btn{display:block;}
+
+/* 文字框元素 */
+.canvas-text{
+  position:absolute;pointer-events:auto;cursor:move;
+  border:2px solid transparent;border-radius:4px;padding:8px 12px;
+  user-select:none;min-width:40px;min-height:20px;
+  display:flex;align-items:center;justify-content:center;
+  word-break:break-word;text-align:center;
+}
+.canvas-text.selected{border-color:#00d4ff;box-shadow:0 0 16px rgba(0,212,255,.6);}
+.canvas-text .resize-handle{
+  position:absolute;width:14px;height:14px;background:#00d4ff;
+  border:2px solid #1a2540;border-radius:50%;display:none;z-index:10;
+}
+.canvas-text.selected .resize-handle{display:block;}
+.canvas-text .rh-br{right:-7px;bottom:-7px;cursor:nwse-resize;}
+.canvas-text .elem-del-btn{
+  position:absolute;top:-11px;right:-11px;width:24px;height:24px;
+  background:#ff5d7a;color:#fff;border-radius:50%;font-size:15px;
+  line-height:21px;text-align:center;cursor:pointer;display:none;z-index:11;
+  border:2px solid #1a2540;
+}
+.canvas-text.selected .elem-del-btn{display:block;}
+
+/* 图层控制按钮组 */
+.layer-group{display:flex;gap:4px;margin-top:8px;}
+.layer-btn{
+  flex:1;padding:6px 4px;font-size:11px;
+  background:#121828;border:1px solid #1a2540;border-radius:4px;
+  color:#8ab8e0;cursor:pointer;transition:all .15s;text-align:center;
+}
+.layer-btn:hover{background:#1a2540;color:#fff;border-color:#4a5a80;}
+.layer-btn:active{background:#3d4a6a;}
+
+/* 元素类型标签 */
+.elem-type-tag{
+  display:inline-block;padding:2px 8px;border-radius:10px;font-size:10px;
+  font-weight:bold;margin-right:6px;
+}
+.elem-type-tag.device{background:#2a4a6a;color:#7ec8e3;}
+.elem-type-tag.image{background:#2a5a3a;color:#7ee3a0;}
+.elem-type-tag.text{background:#5a4a2a;color:#e3c87e;}
+
+/* 元素列表项 */
+.elem-list-item{
+  display:flex;align-items:center;gap:8px;padding:8px 10px;
+  background:#1a2540;border:1px solid #2a3a60;border-radius:6px;
+  margin-bottom:4px;cursor:pointer;transition:all .15s;
+}
+.elem-list-item:hover{background:#243458;border-color:#3a4a70;}
+.elem-list-item.selected{background:#2a3a5a;border-color:#00d4ff;}
+.elem-list-item .eli-icon{font-size:18px;flex-shrink:0;}
+.elem-list-item .eli-name{flex:1;font-size:12px;color:#c0d0f0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.elem-list-item .eli-del{
+  width:22px;height:22px;border-radius:50%;background:#3a2a3a;
+  color:#ff8a9a;border:none;cursor:pointer;font-size:14px;line-height:20px;
+  flex-shrink:0;transition:all .15s;
+}
+.elem-list-item .eli-del:hover{background:#ff5d7a;color:#fff;}
+
+/* 添加元素按钮组 */
+.add-elem-group{display:flex;gap:6px;margin-bottom:12px;}
+.add-elem-btn{
+  flex:1;padding:8px 6px;font-size:12px;font-weight:bold;
+  background:#2a3a5a;border:1px solid #3a4a70;border-radius:6px;
+  color:#c0d0f0;cursor:pointer;transition:all .15s;text-align:center;
+}
+.add-elem-btn:hover{background:#344870;color:#fff;border-color:#4a5a80;}
+.add-elem-btn.device{border-color:#3a6a8a;}
+.add-elem-btn.image{border-color:#3a8a5a;}
+.add-elem-btn.text{border-color:#8a7a3a;}
+
+/* 元素分组标题 */
+.elem-group-title{
+  font-size:11px;font-weight:bold;color:#7aa8d8;margin:12px 0 6px 0;
+  padding-bottom:4px;border-bottom:1px solid #2a3a60;
+  display:flex;align-items:center;gap:6px;
+}
+.elem-group-title::before{
+  content:"";width:3px;height:12px;background:#00d4ff;border-radius:2px;
+}
+
+/* 图片/文字属性面板 */
+.elem-prop-section{margin-top:12px;}
+.elem-prop-section .eps-title{
+  font-size:11px;font-weight:bold;color:#7aa8d8;margin-bottom:6px;
+}
+
+</style>
+</head>
+<body>
+
+<div class="info-panel">
+  <div class="info-left">
+    <h1>混合逆变器 运行模式介绍</h1>
+    <div class="sub">INVT 储能 · 并网 / 离网能量流向拓扑</div>
+  </div>
+  <div class="mode-tag" id="modeNameDisplay">并网模式 > 负载优先</div>
+  <div class="mode-desc" id="modeDesc">
+    <b>请选择运行模式：</b>点击右侧面板选择模式和附加条件，查看能量流向。
+  </div>
+</div>
+
+<div class="stage-wrap" id="stageWrap">
+  <div class="stage">
+    <svg viewBox="0 0 1600 900">
+      <path id="w-pv-inv" class="wire" style="stroke:#ffc832;" d="M 575,270 C 691,270 554,460 670,460"/>
+      <path id="w-bat-inv" class="wire" style="stroke:#3ddc84;" d="M 575,670 C 691,670 554,460 670,460"/>
+      <path id="w-inv-ct" class="wire" style="stroke:#4da6ff;" d="M 910,460 C 1054,460 941,340 1085,340"/>
+      <path id="w-ct-grid" class="wire" style="stroke:#4da6ff;" d="M 1215,340 C 1275,340 1165,200 1225,200"/>
+      <path id="w-ct-gen" class="wire" style="stroke:#ff5d7a;stroke-dasharray:10,5;" d="M 1215,340 C 1275,340 1175,480 1235,480"/>
+      <path id="w-inv-eps" class="wire wire-core" style="stroke:#ff5d7a;" d="M 910,460 C 1066,460 954,720 1110,720"/>
+      <g id="particles"></g>
+    </svg>
+
+    <div class="dev" id="dev-pv" style="left:500px;top:270px;width:150px;border-color:#ffc832;">
+      <div class="icon">☀️</div><div class="name" style="font-size:14px;">光伏组件</div><div class="desc" style="font-size:11px;">直流输入 · 能量优先使用</div>
+    </div>
+    <div class="dev" id="dev-bat" style="left:500px;top:670px;width:150px;border-color:#3ddc84;">
+      <div class="icon">🔋</div><div class="name" style="font-size:14px;">锂电池</div><div class="desc" style="font-size:11px;">储能 / 备电 / 峰谷套利</div>
+    </div>
+    <div class="dev core" id="dev-inv" style="left:790px;top:460px;width:240px;">
+      <div class="icon">🔄</div><div class="name" style="font-size:14px;">混合逆变器</div><div class="desc" style="font-size:11px;">并网 / 离网自动切换<br>能量调度核心</div>
+    </div>
+    <div class="dev" id="dev-ct" style="left:1150px;top:340px;width:130px;border-color:#4da6ff;">
+      <div class="icon">⚡</div><div class="name" style="font-size:14px;">CT / 电表</div><div class="desc" style="font-size:11px;">计量一般负载功率<br>用于功率控制</div>
+    </div>
+    <div class="dev" id="dev-grid" style="left:1300px;top:200px;width:150px;border-color:#4da6ff;">
+      <div class="icon">🏦</div><div class="name" style="font-size:14px;">市电 / 电网</div><div class="desc" style="font-size:11px;">GRID 口接入 · 并网检测</div>
+    </div>
+    <div class="dev" id="dev-gen" style="left:1300px;top:480px;width:130px;border-color:#ff5d7a;">
+      <div class="icon">🏢</div><div class="name" style="font-size:14px;">一般负载</div><div class="desc" style="font-size:11px;">接于 GRID 口<br>功率由 CT / 电表计量</div>
+    </div>
+    <div class="dev" id="dev-eps" style="left:1180px;top:720px;width:140px;border-color:#ff5d7a;">
+      <div class="icon">🏥</div><div class="name" style="font-size:14px;">EPS 重要负载</div><div class="desc" style="font-size:11px;">EPS 口直供 · 始终优先</div>
+    </div>
+
+    <div class="export-text" data-txt-id="txt1" style="left:400px;top:300px;width:150px;min-height:36px;font-size:14px;color:#ffffff;z-index:100;">
+      双击编辑文字
+    </div>
+    <div class="export-text" data-txt-id="txt1" style="left:430px;top:325px;width:150px;min-height:36px;font-size:14px;color:#ffffff;z-index:101;">
+      双击编辑文字
+    </div>
+
+  </div>
+</div>
+
+<div class="panel ps-classic">
+  <div class="panel-head">
+    <h3>运行模式切换</h3>
+    <button class="auto-btn" id="autoBtn" title="自动循环播放模式和条件">AUTO</button>
+  </div>
+      <button class="mode-btn mode-l0 has-child " data-depth="0" data-path="grid">并网模式</button>
+      <button class="mode-btn mode-l1  on" data-depth="1" data-path="grid|load">负载优先</button>
+      <button class="mode-btn mode-l1  " data-depth="1" data-path="grid|battery">电池优先</button>
+      <button class="mode-btn mode-l1  " data-depth="1" data-path="grid|mains">市电优先</button>
+      <button class="mode-btn mode-l0  " data-depth="0" data-path="offgrid">离网模式</button>
+      <button class="mode-btn mode-l0  " data-depth="0" data-path="diesel">柴发模式</button>
+      <button class="mode-btn mode-l0  " data-depth="0" data-path="smartload">SMARTLOAD模式</button>
+
+
+  <div class="divider"></div>
+  <div class="sec-title">附加条件</div>
+      <div id="condPanel"></div>
+
+</div>
+
+<script>
+let conditionGroups = [
+  {
+    "id": "pv",
+    "name": "PV状态",
+    "enabled": true,
+    "selected": "pv-gt",
+    "conditions": [
+      {
+        "id": "pv-gt",
+        "name": "PV大于负载"
+      },
+      {
+        "id": "pv-lt",
+        "name": "PV小于负载"
+      },
+      {
+        "id": "pv-none",
+        "name": "无PV"
+      }
+    ]
+  },
+  {
+    "id": "anti",
+    "name": "防逆流",
+    "enabled": true,
+    "selected": "anti-on",
+    "conditions": [
+      {
+        "id": "anti-on",
+        "name": "防逆流使能"
+      },
+      {
+        "id": "anti-off",
+        "name": "防逆流禁能"
+      }
+    ]
+  },
+  {
+    "id": "bat",
+    "name": "电池状态",
+    "enabled": false,
+    "selected": "bat-full",
+    "conditions": [
+      {
+        "id": "bat-full",
+        "name": "电池电量充足"
+      },
+      {
+        "id": "bat-low",
+        "name": "电池电量不足"
+      }
+    ]
+  }
+];
+const modeGroups = [
+  {
+    "id": "grid",
+    "name": "并网模式",
+    "subModes": [
+      {
+        "id": "load",
+        "name": "负载优先"
+      },
+      {
+        "id": "battery",
+        "name": "电池优先"
+      },
+      {
+        "id": "mains",
+        "name": "市电优先"
+      }
+    ]
+  },
+  {
+    "id": "offgrid",
+    "name": "离网模式",
+    "subModes": []
+  },
+  {
+    "id": "diesel",
+    "name": "柴发模式",
+    "subModes": []
+  },
+  {
+    "id": "smartload",
+    "name": "SMARTLOAD模式",
+    "subModes": []
+  }
+];
+const modeConfigs = {
+  "grid-load": {
+    "scenes": {
+      "pv-gt_anti-on": {
+        "desc": "光伏功率＞负载功率：光伏能量优先直供，EPS 重要负载经 EPS 口供电、一般负载经 GRID 口供电；多余功率给锂电池充电；防逆流使能时余电不上网。",
+        "wires": [
+          [
+            "w-pv-inv",
+            1
+          ],
+          [
+            "w-inv-eps",
+            1
+          ],
+          [
+            "w-inv-ct",
+            -1
+          ],
+          [
+            "w-ct-gen",
+            1
+          ],
+          [
+            "w-bat-inv",
+            -1
+          ]
+        ],
+        "deviceEffects": []
+      },
+      "pv-lt_anti-on": {
+        "desc": "光伏功率＜负载功率：锂电池辅助放电带载；电池电量不足时，市电经 CT/电表由 GRID 口进入逆变器，与光伏共同带载。",
+        "wires": [
+          [
+            "w-pv-inv",
+            1
+          ],
+          [
+            "w-inv-eps",
+            1
+          ],
+          [
+            "w-inv-ct",
+            1
+          ],
+          [
+            "w-ct-grid",
+            1
+          ],
+          [
+            "w-ct-gen",
+            1
+          ],
+          [
+            "w-bat-inv",
+            1
+          ]
+        ],
+        "deviceEffects": []
+      }
+    },
+    "conditionGroups": [
+      {
+        "id": "pv",
+        "name": "PV状态",
+        "enabled": true,
+        "selected": "pv-gt",
+        "conditions": [
+          {
+            "id": "pv-gt",
+            "name": "PV大于负载"
+          },
+          {
+            "id": "pv-lt",
+            "name": "PV小于负载"
+          },
+          {
+            "id": "pv-none",
+            "name": "无PV"
+          }
+        ]
+      },
+      {
+        "id": "anti",
+        "name": "防逆流",
+        "enabled": true,
+        "selected": "anti-on",
+        "conditions": [
+          {
+            "id": "anti-on",
+            "name": "防逆流使能"
+          },
+          {
+            "id": "anti-off",
+            "name": "防逆流禁能"
+          }
+        ]
+      },
+      {
+        "id": "bat",
+        "name": "电池状态",
+        "enabled": false,
+        "selected": "bat-full",
+        "conditions": [
+          {
+            "id": "bat-full",
+            "name": "电池电量充足"
+          },
+          {
+            "id": "bat-low",
+            "name": "电池电量不足"
+          }
+        ]
+      }
+    ]
+  },
+  "grid-battery": {
+    "scenes": {
+      "pv-gt_anti-on": {
+        "desc": "光伏功率＞负载功率：多余功率给电池充电，优先保住电池电量；防逆流使能时余电不上网。",
+        "wires": [
+          [
+            "w-pv-inv",
+            1
+          ],
+          [
+            "w-inv-eps",
+            1
+          ],
+          [
+            "w-inv-ct",
+            -1
+          ],
+          [
+            "w-ct-gen",
+            1
+          ],
+          [
+            "w-bat-inv",
+            -1
+          ]
+        ],
+        "deviceEffects": []
+      },
+      "pv-lt_anti-on": {
+        "desc": "光伏功率＜负载功率：市电＋光伏经 GRID 口带载，电池不放电；开启逆变充电使能时，市电同时给电池充电。",
+        "wires": [
+          [
+            "w-pv-inv",
+            1
+          ],
+          [
+            "w-inv-eps",
+            1
+          ],
+          [
+            "w-inv-ct",
+            1
+          ],
+          [
+            "w-ct-grid",
+            1
+          ],
+          [
+            "w-ct-gen",
+            1
+          ],
+          [
+            "w-bat-inv",
+            -1
+          ]
+        ],
+        "deviceEffects": []
+      }
+    }
+  },
+  "grid-mains": {
+    "scenes": {
+      "pv-gt_anti-on": {
+        "desc": "光伏功率＞负载功率：优先使用光伏与电池能量，不使用市电；防逆流使能时余电给电池充电，电池充满后弃光。",
+        "wires": [
+          [
+            "w-pv-inv",
+            1
+          ],
+          [
+            "w-inv-eps",
+            1
+          ],
+          [
+            "w-inv-ct",
+            -1
+          ],
+          [
+            "w-ct-gen",
+            1
+          ],
+          [
+            "w-bat-inv",
+            -1
+          ]
+        ],
+        "deviceEffects": []
+      },
+      "pv-lt_anti-on": {
+        "desc": "光伏功率＜负载功率：锂电池优先放电带载；仅当电池放到截止 SOC 保护后，市电才经 GRID 口辅助带载。",
+        "wires": [
+          [
+            "w-pv-inv",
+            1
+          ],
+          [
+            "w-inv-eps",
+            1
+          ],
+          [
+            "w-bat-inv",
+            1
+          ],
+          [
+            "w-inv-ct",
+            -1
+          ],
+          [
+            "w-ct-gen",
+            1
+          ]
+        ],
+        "deviceEffects": []
+      }
+    }
+  },
+  "offgrid": {
+    "scenes": {
+      "pv-gt_anti-on": {
+        "desc": "市电断开（GRID 灯灭）：系统仅剩光伏 / 电池 / EPS 重要负载；光伏直供重要负载，多余功率给电池充电。",
+        "wires": [
+          [
+            "w-pv-inv",
+            1
+          ],
+          [
+            "w-inv-eps",
+            1
+          ],
+          [
+            "w-bat-inv",
+            -1
+          ]
+        ],
+        "deviceEffects": [
+          {
+            "device": "grid",
+            "effect": "off"
+          },
+          {
+            "device": "ct",
+            "effect": "off"
+          },
+          {
+            "device": "gen",
+            "effect": "off"
+          }
+        ]
+      },
+      "pv-lt_anti-on": {
+        "desc": "市电断开（GRID 灯灭）：光伏不足时电池辅助放电带载；夜间完全由电池带载，放电至 DOD 后停机保护。",
+        "wires": [
+          [
+            "w-pv-inv",
+            1
+          ],
+          [
+            "w-inv-eps",
+            1
+          ],
+          [
+            "w-bat-inv",
+            1
+          ]
+        ],
+        "deviceEffects": [
+          {
+            "device": "grid",
+            "effect": "off"
+          },
+          {
+            "device": "ct",
+            "effect": "off"
+          },
+          {
+            "device": "gen",
+            "effect": "off"
+          }
+        ]
+      }
+    }
+  },
+  "diesel": {
+    "scenes": {}
+  },
+  "smartload": {
+    "scenes": {}
+  }
+};
+const devices = [
+  {
+    "id": "pv",
+    "name": "光伏组件",
+    "desc": "直流输入 · 能量优先使用",
+    "icon": "☀️",
+    "x": 500,
+    "y": 270,
+    "width": 150,
+    "color": "#ffc832",
+    "type": "normal",
+    "zIndex": 50
+  },
+  {
+    "id": "bat",
+    "name": "锂电池",
+    "desc": "储能 / 备电 / 峰谷套利",
+    "icon": "🔋",
+    "x": 500,
+    "y": 670,
+    "width": 150,
+    "color": "#3ddc84",
+    "type": "normal",
+    "zIndex": 50
+  },
+  {
+    "id": "inv",
+    "name": "混合逆变器",
+    "desc": "并网 / 离网自动切换\n能量调度核心",
+    "icon": "🔄",
+    "x": 790,
+    "y": 460,
+    "width": 240,
+    "color": "#00d4ff",
+    "type": "core",
+    "zIndex": 50
+  },
+  {
+    "id": "ct",
+    "name": "CT / 电表",
+    "desc": "计量一般负载功率\n用于功率控制",
+    "icon": "⚡",
+    "x": 1150,
+    "y": 340,
+    "width": 130,
+    "color": "#4da6ff",
+    "type": "normal",
+    "zIndex": 50
+  },
+  {
+    "id": "grid",
+    "name": "市电 / 电网",
+    "desc": "GRID 口接入 · 并网检测",
+    "icon": "🏦",
+    "x": 1300,
+    "y": 200,
+    "width": 150,
+    "color": "#4da6ff",
+    "type": "normal",
+    "zIndex": 50
+  },
+  {
+    "id": "gen",
+    "name": "一般负载",
+    "desc": "接于 GRID 口\n功率由 CT / 电表计量",
+    "icon": "🏢",
+    "x": 1300,
+    "y": 480,
+    "width": 130,
+    "color": "#ff5d7a",
+    "type": "normal",
+    "zIndex": 50
+  },
+  {
+    "id": "eps",
+    "name": "EPS 重要负载",
+    "desc": "EPS 口直供 · 始终优先",
+    "icon": "🏥",
+    "x": 1180,
+    "y": 720,
+    "width": 140,
+    "color": "#ff5d7a",
+    "type": "normal",
+    "zIndex": 50
+  }
+];
+const wireColor = {
+  "w-pv-inv":"#ffc832",
+  "w-bat-inv":"#3ddc84",
+  "w-inv-ct":"#4da6ff",
+  "w-ct-grid":"#4da6ff",
+  "w-ct-gen":"#ff5d7a",
+  "w-inv-eps":"#ff5d7a"
+};
+const NS = "http://www.w3.org/2000/svg";
+const pg = document.getElementById("particles");
+
+function spawnParticles(wireId, dir, effect){
+  if(dir === 0) return;
+  effect = effect || "dot";
+  const path = document.getElementById(wireId);
+  if(!path) return;
+  const len = path.getTotalLength();
+  // 粒子统一使用纯白高亮
+  const color = "#ffffff";
+  const count = effect === "pulse" ? 3 : 2;
+  for(let i=0;i<count;i++){
+    let el;
+    const baseAttrs = {wire: wireId, offset: (i/count)*len, speed: 70+Math.random()*50, dir: dir, effect: effect, phase: i/count};
+    if(effect === "dot"){
+      // 1. 光点：实心圆
+      el = document.createElementNS(NS,"circle");
+      el.setAttribute("r","3.5");
+      el.setAttribute("fill", color);
+      el.setAttribute("class","particle");
+    } else if(effect === "arrow"){
+      // 2. 箭头：三角形，带方向
+      el = document.createElementNS(NS,"polygon");
+      el.setAttribute("points","0,-5 9,0 0,5 3,0");
+      el.setAttribute("fill", color);
+      el.setAttribute("class","particle");
+    } else if(effect === "ecg"){
+      // 3. 心电图：折线波形
+      el = document.createElementNS(NS,"path");
+      el.setAttribute("d","M0,0 L3,0 L4,-7 L5,9 L6,-5 L7,0 L10,0");
+      el.setAttribute("fill","none");
+      el.setAttribute("stroke", color);
+      el.setAttribute("stroke-width","1.5");
+      el.setAttribute("class","particle");
+    } else if(effect === "bolt"){
+      // 4. 闪电：闪电形状
+      el = document.createElementNS(NS,"polygon");
+      el.setAttribute("points","3,-7 -3,0 0,0 -3,7 5,-2 2,-2");
+      el.setAttribute("fill", color);
+      el.setAttribute("class","particle");
+    } else if(effect === "square"){
+      // 5. 方块：正方形
+      el = document.createElementNS(NS,"rect");
+      el.setAttribute("x","-4.5");
+      el.setAttribute("y","-4.5");
+      el.setAttribute("width","9");
+      el.setAttribute("height","9");
+      el.setAttribute("fill", color);
+      el.setAttribute("class","particle");
+    } else if(effect === "diamond"){
+      // 6. 菱形：旋转45度的正方形
+      el = document.createElementNS(NS,"polygon");
+      el.setAttribute("points","0,-6 5.5,0 0,6 -5.5,0");
+      el.setAttribute("fill", color);
+      el.setAttribute("class","particle");
+    } else if(effect === "cross"){
+      // 7. 十字：十字形
+      el = document.createElementNS(NS,"path");
+      el.setAttribute("d","M-2,-6 L2,-6 L2,-2 L6,-2 L6,2 L2,2 L2,6 L-2,6 L-2,2 L-6,2 L-6,-2 L-2,-2 Z");
+      el.setAttribute("fill", color);
+      el.setAttribute("class","particle");
+    } else if(effect === "star"){
+      // 8. 星芒：五角星
+      el = document.createElementNS(NS,"polygon");
+      el.setAttribute("points","0,-6.5 1.8,-2 6.5,-2 2.7,1 4.2,6 0,3 -4.2,6 -2.7,1 -6.5,-2 -1.8,-2");
+      el.setAttribute("fill", color);
+      el.setAttribute("class","particle");
+    } else if(effect === "ring"){
+      // 9. 环形：空心圆
+      el = document.createElementNS(NS,"circle");
+      el.setAttribute("r","4.5");
+      el.setAttribute("fill","none");
+      el.setAttribute("stroke", color);
+      el.setAttribute("stroke-width","2");
+      el.setAttribute("class","particle");
+    } else if(effect === "pulse"){
+      // 10. 脉冲波：扩散圆环
+      el = document.createElementNS(NS,"circle");
+      el.setAttribute("r","2");
+      el.setAttribute("fill","none");
+      el.setAttribute("stroke", color);
+      el.setAttribute("stroke-width","1.5");
+      el.setAttribute("class","particle");
+    } else {
+      el = document.createElementNS(NS,"circle");
+      el.setAttribute("r","3.5");
+      el.setAttribute("fill", color);
+      el.setAttribute("class","particle");
+    }
+    el.setAttribute("style", "color:#ffffff;");
+    for(const k in baseAttrs) el.dataset[k] = baseAttrs[k];
+    pg.appendChild(el);
+  }
+}
+function clearParticles(){ pg.innerHTML=""; }
+
+let curModePath = ["grid","load"];
+function findModeByPath(path){
+  let nodes = modeGroups;
+  let result = null;
+  for(let i=0; i<path.length; i++){
+    result = nodes.find(n=>n.id===path[i]);
+    if(!result) return null;
+    nodes = result.subModes || [];
+  }
+  return result;
+}
+// 获取完整模式路径名称，如 "并网模式 > 负载优先"
+function getModePathName(path){
+  let nodes = modeGroups;
+  const names = [];
+  for(let i=0; i<path.length; i++){
+    const node = nodes.find(n=>n.id===path[i]);
+    if(!node) break;
+    names.push(node.name);
+    nodes = node.subModes || [];
+  }
+  return names.join(" > ");
+}
+function currentModeKey(){
+  return curModePath.join("-");
+}
+function getSceneKey(){
+  const parts = [];
+  conditionGroups.forEach(g=>{ if(g.enabled && g.selected) parts.push(g.selected); });
+  return parts.length > 0 ? parts.join("_") : "default";
+}
+
+// 渲染条件面板
+function renderCondPanel(){
+  const panel = document.getElementById("condPanel");
+  let html = "";
+  conditionGroups.forEach((cg, gi)=>{
+    html += '<div class="cond-group ' + (cg.enabled?'enabled':'') + '">';
+    html += '<div class="cg-head">';
+    html += '<input type="checkbox" class="cg-check" data-cg="' + cg.id + '" ' + (cg.enabled?'checked':'') + '>';
+    html += '<span class="cg-label">' + cg.name + '</span>';
+    html += '</div>';
+    html += '<div class="cg-body">';
+    cg.conditions.forEach(c=>{
+      html += '<div class="cond-sub ' + (cg.selected===c.id?'on':'') + '" data-cond="' + cg.id + '|' + c.id + '">';
+      html += '<span class="cs-radio"></span><span>' + c.name + '</span>';
+      html += '</div>';
+    });
+    html += '</div></div>';
+  });
+  panel.innerHTML = html;
+  panel.querySelectorAll(".cg-check").forEach(cb=>{
+    cb.addEventListener("change",()=>{
+      const cg = conditionGroups.find(g=>g.id===cb.dataset.cg);
+      if(cg){ cg.enabled = cb.checked; renderCondPanel(); setView(); }
+    });
+  });
+  panel.querySelectorAll(".cond-sub").forEach(el=>{
+    el.addEventListener("click",()=>{
+      const [cgid,cid] = el.dataset.cond.split("|");
+      const cg = conditionGroups.find(g=>g.id===cgid);
+      if(cg){ cg.selected = cid; renderCondPanel(); setView(); }
+    });
+  });
+}
+
+function setView(){
+  const key = currentModeKey();
+  const mc = modeConfigs[key] || {scenes:{}};
+  const sk = getSceneKey();
+  const sc = mc.scenes[sk] || {desc:"", wires:[], deviceEffects:[]};
+  const curMode = findModeByPath(curModePath);
+  const pathStr = curModePath.join("|");
+
+  document.querySelectorAll(".mode-btn").forEach(b=>{b.classList.toggle("on", b.dataset.path===pathStr);});
+
+  let displayName = getModePathName(curModePath) || (curMode ? curMode.name : "");
+  document.getElementById("modeNameDisplay").textContent = displayName;
+
+  // GRID灯
+  let gridOn = true;
+  const allEffsForGrid = [];
+  if(sc.elementEffects) allEffsForGrid.push(...sc.elementEffects);
+  if(sc.deviceEffects) sc.deviceEffects.forEach(de=>{ allEffsForGrid.push({type:"device", id:de.device, effect:de.effect}); });
+  const gridEff = allEffsForGrid.find(e=>e.type==="device" && (e.id==="grid" || e.id==="ct"));
+  if(gridEff && gridEff.effect==="off") gridOn = false;
+
+
+  // 重置元素效果
+  // 设备：重置所有效果包括opacity
+  document.querySelectorAll(".dev").forEach(d=>{
+    d.classList.remove("off","highlight","elem-blink","elem-hidden");
+    d.style.filter = "";
+    d.style.borderColor = "";
+    d.style.opacity = "";
+  });
+  // 图片和文字框：只重置场景效果类，不重置opacity/zIndex（这些是元素固有属性）
+  document.querySelectorAll(".export-image, .export-text").forEach(d=>{
+    d.classList.remove("off","highlight","elem-blink","elem-hidden");
+    d.style.filter = "";
+  });
+
+  // 应用元素效果（兼容旧deviceEffects和新elementEffects）
+  const allEffects = [];
+  if(sc.elementEffects) allEffects.push(...sc.elementEffects);
+  if(sc.deviceEffects) sc.deviceEffects.forEach(de=>{ allEffects.push({type:"device", id:de.device, effect:de.effect}); });
+  allEffects.forEach(ee=>{
+    let el = null;
+    if(ee.type === "device") el = document.getElementById("dev-" + ee.id);
+    else if(ee.type === "image") el = document.querySelector('.export-image[data-img-id="' + ee.id + '"]') || document.getElementById("elem-image-" + ee.id);
+    else if(ee.type === "text") el = document.querySelector('.export-text[data-txt-id="' + ee.id + '"]') || document.getElementById("elem-text-" + ee.id);
+    if(!el) return;
+    if(ee.effect === "off") el.classList.add("off");
+    else if(ee.effect === "highlight"){
+      el.classList.add("highlight");
+      if(ee.type === "device"){
+        const devObj = devices.find(d => d.id === ee.id);
+        const devColor = (devObj && devObj.color) || "#00d4ff";
+        el.style.filter = "drop-shadow(0 0 12px " + devColor + "bb) drop-shadow(0 0 24px " + devColor + "66)";
+        el.style.borderColor = devColor;
+      } else {
+        el.style.filter = "drop-shadow(0 0 10px rgba(0,212,255,.7)) drop-shadow(0 0 20px rgba(0,212,255,.4))";
+      }
+    }
+    else if(ee.effect === "blink") el.classList.add("elem-blink");
+    else if(ee.effect === "hidden") el.classList.add("elem-hidden");
+  });
+
+  document.getElementById("modeDesc").innerHTML = "<b>"+(curMode?curMode.name:displayName)+"：</b>"+(sc.desc||"");
+
+  document.querySelectorAll(".wire").forEach(w=>{ w.classList.remove("active","wire-blink"); });
+  clearParticles();
+  (sc.wires||[]).forEach((wireEntry)=>{
+    const id = wireEntry[0];
+    const dir = wireEntry[1];
+    const effect = wireEntry[2] || "dot";
+    const wireEff = wireEntry[3] || "normal";
+    const w = document.getElementById(id);
+    if(!w) return;
+    w.classList.add("active");
+    if(wireEff === "core") w.classList.add("wire-core");
+    if(effect === "blink"){
+      w.classList.add("wire-blink");
+    } else {
+      spawnParticles(id, dir, effect || "dot");
+    }
+  });
+  // 模式切换后重新计算布局，因为说明文字高度可能变化
+  requestAnimationFrame(fitStage);
+}
+
+let last = performance.now();
+function tick(now){
+  const dt = (now-last)/1000; last = now;
+  const time = now/1000;
+  pg.querySelectorAll(".particle").forEach(c=>{
+    const path = document.getElementById(c.dataset.wire);
+    if(!path) return;
+    const len = path.getTotalLength();
+    const effect = c.dataset.effect || "dot";
+    const dir = parseFloat(c.dataset.dir);
+    let off = parseFloat(c.dataset.offset) + parseFloat(c.dataset.speed)*dir*dt;
+    off = off % len;
+    if(off < 0) off += len;
+    c.dataset.offset = off;
+    const pt = path.getPointAtLength(off);
+    const pt2 = path.getPointAtLength((off + 2*dir + len) % len);
+    const angle = Math.atan2(pt2.y - pt.y, pt2.x - pt.x) * 180 / Math.PI;
+    const phase = parseFloat(c.dataset.phase);
+
+    // 基础位置变换
+    let baseTransform = "translate("+pt.x+","+pt.y+")";
+    let extraAnim = "";
+
+    // 效果特定的差异化动画
+    if(effect === "dot"){
+      // 光点：匀速移动，无额外动画
+      c.setAttribute("cx",pt.x);
+      c.setAttribute("cy",pt.y);
+      c.removeAttribute("transform");
+    } else if(effect === "arrow"){
+      // 箭头：沿路径方向旋转
+      extraAnim = " rotate("+angle+")";
+      c.setAttribute("transform", baseTransform + extraAnim);
+    } else if(effect === "ecg"){
+      // 心电图：沿路径方向旋转，轻微闪烁
+      extraAnim = " rotate("+angle+")";
+      const blink = 0.7 + 0.3*Math.sin(time*8 + phase*6.28);
+      c.setAttribute("opacity", blink);
+      c.setAttribute("transform", baseTransform + extraAnim);
+    } else if(effect === "bolt"){
+      // 闪电：快速闪烁，不旋转
+      const blink = Math.sin(time*12 + phase*6.28) > -0.3 ? 1 : 0.15;
+      c.setAttribute("opacity", blink);
+      c.setAttribute("transform", baseTransform);
+    } else if(effect === "square"){
+      // 方块：持续旋转
+      const rot = time*60 + phase*360;
+      c.setAttribute("transform", baseTransform + " rotate("+rot+")");
+    } else if(effect === "diamond"){
+      // 菱形：沿路径方向旋转 + 缩放脉动
+      const scale = 0.85 + 0.15*Math.sin(time*4 + phase*6.28);
+      c.setAttribute("transform", baseTransform + " rotate("+angle+") scale("+scale+")");
+    } else if(effect === "cross"){
+      // 十字：快速旋转
+      const rot = time*90 + phase*360;
+      c.setAttribute("transform", baseTransform + " rotate("+rot+")");
+    } else if(effect === "star"){
+      // 星芒：缩放闪烁
+      const scale = 0.7 + 0.3*Math.sin(time*5 + phase*6.28);
+      const opacity = 0.6 + 0.4*Math.sin(time*5 + phase*6.28);
+      c.setAttribute("opacity", opacity);
+      c.setAttribute("transform", baseTransform + " scale("+scale+")");
+    } else if(effect === "ring"){
+      // 环形：缩放脉动
+      const scale = 0.7 + 0.5*Math.sin(time*3 + phase*6.28);
+      c.setAttribute("opacity", 0.5 + 0.5*Math.sin(time*3 + phase*6.28));
+      c.setAttribute("cx",pt.x);
+      c.setAttribute("cy",pt.y);
+      c.setAttribute("r", 4.5 * scale);
+      c.removeAttribute("transform");
+    } else if(effect === "pulse"){
+      // 脉冲波：扩散圆环，半径和透明度变化
+      const t = (time*1.5 + phase) % 1;
+      const r = 2 + t*10;
+      const opacity = (1-t) * 0.8;
+      c.setAttribute("cx",pt.x);
+      c.setAttribute("cy",pt.y);
+      c.setAttribute("r", r);
+      c.setAttribute("opacity", opacity);
+      c.setAttribute("stroke-width", 1.5 * (1-t*0.5));
+      c.removeAttribute("transform");
+    } else {
+      c.setAttribute("cx",pt.x);
+      c.setAttribute("cy",pt.y);
+      c.removeAttribute("transform");
+    }
+  });
+  requestAnimationFrame(tick);
+}
+
+document.querySelectorAll(".mode-btn").forEach(b=>{
+  b.addEventListener("click",()=>{
+    if(autoPlaying) stopAutoPlay();
+    curModePath = b.dataset.path.split("|");
+    // 切换模式时加载该模式自己的条件组
+    const mk = curModePath.join("-");
+    const mmc = modeConfigs[mk];
+    if(mmc && mmc.conditionGroups){
+      conditionGroups.length = 0;
+      mmc.conditionGroups.forEach(g=>conditionGroups.push(JSON.parse(JSON.stringify(g))));
+      renderCondPanel();
+    }
+    setView();
+  });
+});
+
+// ========== 自动播放功能 ==========
+let autoPlaying = false;
+let autoTimer = null;
+let autoModeIndex = 0;
+let autoCondIndex = 0;
+let autoModePaths = [];
+
+function collectAutoModes(){
+  autoModePaths = [];
+  function walk(nodes, parentPath){
+    nodes.forEach(node=>{
+      const path = [...parentPath, node.id];
+      autoModePaths.push(path.join("|"));
+      if(node.subModes && node.subModes.length > 0){
+        walk(node.subModes, path);
+      }
+    });
+  }
+  walk(modeGroups, []);
+}
+
+function getEnabledCondGroups(){
+  return conditionGroups.filter(cg=>cg.enabled && cg.conditions && cg.conditions.length > 0);
+}
+
+function applyAutoState(){
+  if(autoModePaths.length === 0) return;
+  // 切换模式
+  const modePath = autoModePaths[autoModeIndex % autoModePaths.length];
+  curModePath = modePath.split("|");
+  // 切换模式时加载该模式自己的条件组
+  const mk2 = curModePath.join("-");
+  const mmc2 = modeConfigs[mk2];
+  if(mmc2 && mmc2.conditionGroups){
+    conditionGroups.length = 0;
+    mmc2.conditionGroups.forEach(g=>conditionGroups.push(JSON.parse(JSON.stringify(g))));
+  }
+  // 切换条件
+  const enabledGroups = getEnabledCondGroups();
+  if(enabledGroups.length > 0){
+    // 计算当前应该选择哪个条件组合
+    const totalCombos = enabledGroups.reduce((acc, cg)=>acc * cg.conditions.length, 1);
+    const comboIdx = autoCondIndex % totalCombos;
+    let idx = comboIdx;
+    enabledGroups.forEach(cg=>{
+      const condIdx = idx % cg.conditions.length;
+      idx = Math.floor(idx / cg.conditions.length);
+      cg.selected = cg.conditions[condIdx].id;
+    });
+    renderCondPanel();
+  }
+  setView();
+  autoCondIndex++;
+  // 每完成一轮条件组合，切换到下一个模式
+  if(enabledGroups.length > 0){
+    const totalCombos = enabledGroups.reduce((acc, cg)=>acc * cg.conditions.length, 1);
+    if(autoCondIndex % totalCombos === 0){
+      autoModeIndex++;
+    }
+  } else {
+    autoModeIndex++;
+  }
+}
+
+function startAutoPlay(){
+  if(autoPlaying) return;
+  autoPlaying = true;
+  autoModeIndex = 0;
+  autoCondIndex = 0;
+  collectAutoModes();
+  const btn = document.getElementById("autoBtn");
+  if(btn) btn.classList.add("active");
+  applyAutoState();
+  autoTimer = setInterval(applyAutoState, 3000);
+}
+
+function stopAutoPlay(){
+  autoPlaying = false;
+  if(autoTimer){ clearInterval(autoTimer); autoTimer = null; }
+  const btn = document.getElementById("autoBtn");
+  if(btn) btn.classList.remove("active");
+}
+
+// AUTO按钮点击事件
+const autoBtnEl = document.getElementById("autoBtn");
+if(autoBtnEl){
+  autoBtnEl.addEventListener("click",()=>{
+    if(autoPlaying) stopAutoPlay();
+    else startAutoPlay();
+  });
+}
+
+// 条件点击时停止自动播放
+document.addEventListener("click",(e)=>{
+  if(autoPlaying && (e.target.closest(".cond-sub") || e.target.closest(".cg-check"))){
+    stopAutoPlay();
+  }
+});
+
+// ========== 画布缩放和拖动 ==========
+let canvasManual = false;
+let canvasScale = 1;
+let canvasTx = 0, canvasTy = 0;
+let isDragging = false;
+let dragStartX = 0, dragStartY = 0;
+let dragStartTx = 0, dragStartTy = 0;
+
+function applyCanvasTransform(){
+  const wrap = document.getElementById("stageWrap");
+  if(wrap) wrap.style.transform = "translate(" + canvasTx + "px, " + canvasTy + "px) scale(" + canvasScale + ")";
+}
+
+function resetCanvasView(){
+  canvasManual = false;
+  fitStage();
+}
+
+function initCanvasZoomPan(){
+  const wrap = document.getElementById("stageWrap");
+  if(!wrap) return;
+  wrap.addEventListener("wheel", (e)=>{
+    e.preventDefault();
+    canvasManual = true;
+    const rect = wrap.getBoundingClientRect();
+    const mouseX = e.clientX - rect.left;
+    const mouseY = e.clientY - rect.top;
+    const delta = e.deltaY > 0 ? 0.9 : 1.1;
+    const newScale = Math.max(0.3, Math.min(5, canvasScale * delta));
+    canvasTx = e.clientX - (mouseX * newScale / canvasScale);
+    canvasTy = e.clientY - (mouseY * newScale / canvasScale);
+    canvasScale = newScale;
+    applyCanvasTransform();
+  }, {passive: false});
+  wrap.addEventListener("mousedown", (e)=>{
+    if(e.target.closest(".panel") || e.target.closest(".info-panel")) return;
+    isDragging = true;
+    canvasManual = true;
+    dragStartX = e.clientX;
+    dragStartY = e.clientY;
+    dragStartTx = canvasTx;
+    dragStartTy = canvasTy;
+    wrap.style.cursor = "grabbing";
+    e.preventDefault();
+  });
+  document.addEventListener("mousemove", (e)=>{
+    if(!isDragging) return;
+    canvasTx = dragStartTx + (e.clientX - dragStartX);
+    canvasTy = dragStartTy + (e.clientY - dragStartY);
+    applyCanvasTransform();
+  });
+  document.addEventListener("mouseup", ()=>{
+    if(isDragging){
+      isDragging = false;
+      const wrap = document.getElementById("stageWrap");
+      if(wrap) wrap.style.cursor = "grab";
+    }
+  });
+  wrap.addEventListener("dblclick", (e)=>{
+    if(e.target.closest(".panel") || e.target.closest(".info-panel")) return;
+    resetCanvasView();
+  });
+  wrap.style.cursor = "grab";
+}
+
+function fitStage(){
+  if(canvasManual) return; // 用户手动缩放/拖动时不自动适配
+  const wrap = document.getElementById("stageWrap");
+  if(!wrap) return;
+  // 动态获取实际尺寸
+  const infoPanel = document.querySelector(".info-panel");
+  const panel = document.querySelector(".panel");
+  let HDR = 68, SIDEBAR = 210;
+  if(infoPanel){
+    const rect = infoPanel.getBoundingClientRect();
+    if(rect.height > 0) HDR = rect.height;
+  }
+  if(panel){
+    const rect = panel.getBoundingClientRect();
+    if(rect.width > 0) SIDEBAR = rect.width;
+  }
+  // 使用clientWidth/clientHeight避免滚动条影响
+  const winW = document.documentElement.clientWidth || window.innerWidth;
+  const winH = document.documentElement.clientHeight || window.innerHeight;
+  // 安全边距，确保四角设备不被遮挡
+  const margin = 8;
+  // 可用区域：左侧从margin开始，右侧到winW-SIDEBAR-margin，顶部从HDR+margin开始
+  const availW = winW - SIDEBAR - margin * 2;
+  const availH = winH - HDR - margin * 2;
+  // 保持画布16:9比例，取较小的缩放比例
+  const scaleW = availW / 1600;
+  const scaleH = availH / 900;
+  const scale = Math.min(scaleW, scaleH);
+  // 画布在可用区域内水平和垂直居中
+  // 注意：SIDEBAR是右侧面板宽度，已在availW中减去，不再加到左侧tx上
+  const canvasW = 1600 * scale;
+  const canvasH = 900 * scale;
+  const tx = margin + (availW - canvasW) / 2;
+  const ty = HDR + margin + (availH - canvasH) / 2;
+  wrap.style.transform = "translate(" + tx + "px, " + ty + "px) scale(" + scale + ")";
+  // 同步更新缩放状态变量，避免第一次缩放时位置跳变
+  canvasScale = scale;
+  canvasTx = tx;
+  canvasTy = ty;
+}
+// 图库模态框关闭
+  const svgClose = document.getElementById("svgGalleryClose");
+  if(svgClose) svgClose.onclick = function(){ document.getElementById("svgGalleryModal").style.display = "none"; };
+  const svgModal = document.getElementById("svgGalleryModal");
+  if(svgModal) svgModal.addEventListener("click", function(e){ if(e.target.id === "svgGalleryModal") e.target.style.display = "none"; });
+
+window.addEventListener("resize", ()=>{ if(!canvasManual) fitStage(); });
+// 初始化画布缩放拖动
+initCanvasZoomPan();
+// 初始化画布缩放拖动
+initCanvasZoomPan();
+// 初始化时加载第一个模式自己的条件组
+(function initConditionGroups(){
+  const initKey = curModePath.join("-");
+  const initMc = modeConfigs[initKey];
+  if(initMc && initMc.conditionGroups){
+    conditionGroups.length = 0;
+    initMc.conditionGroups.forEach(g=>conditionGroups.push(JSON.parse(JSON.stringify(g))));
+  }
+})();
+
+// 延迟到DOM渲染完成后调用
+if(document.readyState === "loading"){
+  document.addEventListener("DOMContentLoaded", ()=>{
+    requestAnimationFrame(()=>{
+      fitStage();
+      renderCondPanel();
+      setView();
+      requestAnimationFrame(tick);
+    });
+  });
+} else {
+  requestAnimationFrame(()=>{
+    fitStage();
+    renderCondPanel();
+    setView();
+    requestAnimationFrame(tick);
+  });
+}
+</script>
+</body>
+</html>
